@@ -12,59 +12,58 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from adapt.intent import IntentBuilder
-from mycroft import MycroftSkill, intent_handler
-from mycroft.util.log import LOG, getLogger
-from lingua_franca.parse import extract_number
-
 from random import randint
 
+from lingua_franca.parse import extract_number
+from ovos_workshop.decorators import intent_handler
+from ovos_workshop.intents import IntentBuilder
+from ovos_workshop.skills import OVOSSkill
+
 __author__ = 'Arc676/Alessandro Vinciguerra'
-LOGGER = getLogger(__name__)
 
-class NumberGuessSkill(MycroftSkill):
 
-	lowerBound = 0
-	upperBound = 100
-	answer = 0
-	userGuess = 0
+class NumberGuessSkill(OVOSSkill):
+    def initialize(self):
+        self.playing = False
+        self.lowerBound = 0
+        self.upperBound = 100
 
-	def get_numerical_response(self, dialog):
-		while True:
-			val = self.get_response(dialog)
-			val = extract_number(val)
-			try:
-				val = int(val)
-				return val
-			except ValueError:
-				self.speak_dialog("invalid.input")
-			except:
-				self.speak_dialog("input.error")
+    def get_numerical_response(self, dialog):
+        while self.playing:
+            val = self.get_response(dialog)
+            try:
+                return int(extract_number(val))
+            except ValueError:
+                self.speak_dialog("invalid.input")
+            except:
+                self.speak_dialog("input.error")
 
-	@intent_handler(IntentBuilder("").require("NumberGuess").optionally("Play").optionally("Suggest"))
-	def handle_start_game_intent(self, message):
-		self.speak_dialog("start.game")
+    @intent_handler(
+        IntentBuilder("").require("NumberGuess").optionally("Play").optionally(
+            "Suggest"))
+    def handle_start_game_intent(self, message):
+        self.playing = True
+        self.speak_dialog("start.game")
 
-		# get lower bound
-		lowerBound = self.get_numerical_response("get.lower")
-		# get upper bound
-		upperBound = self.get_numerical_response("get.upper")
+        # get lower bound
+        self.lowerBound = self.get_numerical_response("get.lower")
+        # get upper bound
+        self.upperBound = self.get_numerical_response("get.upper")
 
-		answer = randint(lowerBound, upperBound)
-		userGuess = lowerBound - 1
-		while userGuess != answer:
-			userGuess = self.get_numerical_response("guess")
-			if userGuess < answer:
-				self.speak_dialog("too.low")
-			elif userGuess > answer:
-				self.speak_dialog("too.high")
-		self.speak_dialog("correct")
+        answer = randint(self.lowerBound, self.upperBound)
+        userGuess = self.lowerBound - 1
+        while userGuess != answer:
+            userGuess = self.get_numerical_response("guess")
+            if userGuess < answer:
+                self.speak_dialog("too.low")
+            elif userGuess > answer:
+                self.speak_dialog("too.high")
+        self.speak_dialog("correct")
+        self.playing = False
 
-	def stop(self):
-		lowerBound, upperBound = 0, 100
-		answer = 0
-		userGuess = answer
-		return True
-
-def create_skill():
-	return NumberGuessSkill()
+    def stop(self):
+        if self.playing:
+            self.playing = False
+            self.lowerBound, self.upperBound = 0, 100
+            return True
+        return False
